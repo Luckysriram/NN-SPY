@@ -1,0 +1,16 @@
+# Normalize line endings. Without this, files committed from Windows carry CRLF
+# and every diff on macOS/Linux shows the whole file as changed.
+* text=auto eol=lf
+
+# Binary formats git must never try to normalize or diff as text.
+*.parquet binary
+*.feather binary
+*.png      binary
+*.jpg      binary
+*.pdf      binary
+*.pkl      binary
+*.pt       binary
+*.pth      binary
+
+# Keep generated/vendored files out of language stats and PR diffs.
+tests/fixtures/*.parquet linguist-generated=true

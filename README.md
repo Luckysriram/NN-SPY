@@ -53,6 +53,17 @@ make setup
 make test
 ```
 
+281 tests, unit and integration. They run on every push and pull request via
+`.github/workflows/ci.yml`, which also smoke-tests the full pipeline end to end:
+
+```bash
+python run_demo.py
+```
+
+`run_demo.py` generates a synthetic Black-Scholes chain and walks it through
+every stage. It is an installation check, not a backtest — the P&L it prints
+describes a random walk, not SPY.
+
 Before committing to any dataset, check whether it can support the strategy:
 
 ```bash
