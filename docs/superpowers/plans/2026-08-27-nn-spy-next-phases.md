@@ -1,7 +1,7 @@
 # NN SPY — Next Phases
 
 **Status:** Roadmap. Written 2026-08-27, after the v2 implementation landed.
-**Prior:** `2026-08-27-nn-spy-options-ml.md` (implementation, 282 tests passing)
+**Prior:** `2026-08-27-nn-spy-options-ml.md` (implementation)
 
 ---
 
@@ -11,8 +11,8 @@ The machinery is done and tested. What it has never had is data.
 
 | | |
 |---|---|
-| Pipeline | complete, 282 tests passing, CI green |
-| Real option data | **none** — Yahoo failed feasibility (no Greeks, no history, fake IV) |
+| Pipeline | complete, 355 tests passing, CI green |
+| Real option data | **none** — Yahoo failed feasibility (no history; its Greeks gap is now solvable, see Phase 2) |
 | Event calendar | 2024–2025 stub; `assert_covers()` refuses anything earlier |
 | Model trained on real data | none |
 | Simulator hand-audited | no |
@@ -98,17 +98,13 @@ Verified against the real Yahoo chain: 494 of 508 quotes solved, recovering 453
 distinct implied vols where the vendor column had 20 — i.e. a real surface in
 place of a placeholder.
 
-**Skip entirely if Phase 1's data has delta.**
-
 Delta is not optional — the strategy is *defined* by a −0.20 delta short strike.
 If the source has prices but no Greeks:
 
 1. **Solve for implied vol** from the mid price by bisection or Newton on
    Black-Scholes. Do not trust a vendor IV column that failed the `nunique`
    check above.
-2. **Compute Greeks** from that IV. `tests/fixtures/make_fixture.py::bs_put`
-   already implements the pricing and Greeks — promote it to
-   `models/blackscholes.py` rather than duplicating it.
+2. **Compute Greeks** from that IV — `models/blackscholes.py::bs_greeks`.
 3. **You need two inputs the dataset will not have:** a risk-free rate curve
    (Treasury yields by tenor) and SPY's dividend yield. Both matter — SPY pays
    roughly 1–2%, and ignoring it biases put deltas.
@@ -121,7 +117,8 @@ assumptions. A delta that is systematically off by 0.03 silently changes which
 strike gets sold every single day. Treat this phase as a real component with its
 own tests, not a utility function.
 
-**Effort:** 2–3 days including validation.
+**Effort:** was estimated at 2–3 days; actual build took one session including
+the finite-difference validation and the real-data run.
 
 ---
 
