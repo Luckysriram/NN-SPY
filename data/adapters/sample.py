@@ -6,6 +6,7 @@ vendor without a new module.
 """
 from __future__ import annotations
 
+import math
 from datetime import date, datetime
 
 from data.adapters.base import NormalizeResult
@@ -58,12 +59,26 @@ def _to_dt(v) -> datetime:
 
 
 def _num(v, cast=float, default=None):
-    if v in (None, ""):
+    if v is None or (isinstance(v, str) and not v.strip()):
         return default
     try:
-        return cast(float(str(v).strip()))
+        f = float(str(v).strip())
     except (TypeError, ValueError):
         return default
+    # NaN must become the default, not propagate. A NaN reaching `int()` raises,
+    # and `nan or 0` evaluates to nan because NaN is truthy -- which silently
+    # dropped every row Yahoo returned with a blank volume.
+    if math.isnan(f):
+        return default
+    return cast(f)
+
+
+def _count(v) -> tuple:
+    """Parse a volume/open-interest field. Returns (value, missing_flag)."""
+    n = _num(v, default=None)
+    if n is None:
+        return 0, True
+    return int(n), False
 
 
 def normalize_rows(rows, symbol: str = "SPY", colmap: dict | None = None) -> NormalizeResult:
@@ -107,13 +122,19 @@ def normalize_rows(rows, symbol: str = "SPY", colmap: dict | None = None) -> Nor
                 flags.append("missing_underlying")
                 und = float("nan")
 
+            volume, vol_missing = _count(_pick(r, cm["volume"])[1])
+            oi, oi_missing = _count(_pick(r, cm["open_interest"])[1])
+            if vol_missing:
+                flags.append("missing_volume")
+            if oi_missing:
+                flags.append("missing_open_interest")
+
             res.quotes.append(OptionQuote(
                 timestamp=ts, symbol=symbol, expiry=expiry,
                 dte=(expiry - ts.date()).days, strike=strike, option_type=opt,
                 bid=bid, ask=ask, mid=(bid + ask) / 2.0,
                 last=_num(_pick(r, cm["last"])[1], default=float("nan")),
-                volume=int(_num(_pick(r, cm["volume"])[1], default=0) or 0),
-                open_interest=int(_num(_pick(r, cm["open_interest"])[1], default=0) or 0),
+                volume=volume, open_interest=oi,
                 underlying_price=und, quality_flags=tuple(flags), **greeks,
             ))
         except Exception as e:                      # noqa: BLE001 - row must not kill the load

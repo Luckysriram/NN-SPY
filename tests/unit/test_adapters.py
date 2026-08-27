@@ -48,3 +48,15 @@ def test_unparseable_rows_are_returned_as_rejects_not_printed_and_dropped():
 def test_a_bad_row_does_not_abort_the_whole_load():
     res = normalize_rows([{"bogus": 1}, ROW])
     assert len(res.quotes) == 1
+
+
+def test_nan_volume_is_flagged_not_dropped():
+    """Yahoo returns a blank volume on real contracts. `nan or 0` is nan, and
+    int(nan) raises -- which dropped those rows entirely instead of keeping them."""
+    row = dict(ROW, volume=float("nan"), oi=float("nan"))
+    res = normalize_rows([row])
+    assert len(res.quotes) == 1, res.rejects
+    q = res.quotes[0]
+    assert q.volume == 0 and q.open_interest == 0
+    assert "missing_volume" in q.quality_flags
+    assert "missing_open_interest" in q.quality_flags
