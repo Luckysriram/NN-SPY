@@ -16,35 +16,21 @@ from datetime import date, datetime, timedelta
 
 import numpy as np
 
+from models.blackscholes import bs_greeks
+
 TRADING_DAYS = 252
 DECISION = (15, 45)
 
 
-def _norm_cdf(x: float) -> float:
-    return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+def bs_put(S: float, K: float, T: float, r: float, sigma: float,
+           q: float = 0.0) -> dict:
+    """Black-Scholes put price and greeks. T in years.
 
-
-def _norm_pdf(x: float) -> float:
-    return math.exp(-0.5 * x * x) / math.sqrt(2.0 * math.pi)
-
-
-def bs_put(S: float, K: float, T: float, r: float, sigma: float) -> dict:
-    """Black-Scholes put price and greeks. T in years."""
-    if T <= 0 or sigma <= 0:
-        intrinsic = max(K - S, 0.0)
-        return {"price": intrinsic, "delta": -1.0 if K > S else 0.0,
-                "gamma": 0.0, "theta": 0.0, "vega": 0.0}
-    d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
-    d2 = d1 - sigma * math.sqrt(T)
-    price = K * math.exp(-r * T) * _norm_cdf(-d2) - S * _norm_cdf(-d1)
-    return {
-        "price": price,
-        "delta": _norm_cdf(d1) - 1.0,                       # negative for puts
-        "gamma": _norm_pdf(d1) / (S * sigma * math.sqrt(T)),
-        "theta": (-(S * _norm_pdf(d1) * sigma) / (2 * math.sqrt(T))
-                  + r * K * math.exp(-r * T) * _norm_cdf(-d2)) / 365.0,
-        "vega": S * _norm_pdf(d1) * math.sqrt(T) / 100.0,
-    }
+    Delegates to `models.blackscholes` rather than carrying a second copy of the
+    formulas. Two implementations of the same maths drift, and the fixture's copy
+    is exactly the one nobody would think to re-derive when the real one changed.
+    """
+    return bs_greeks(S, K, T, r, q, sigma, "P").as_dict()
 
 
 def make_underlying(n_days: int = 420, start: date = date(2023, 1, 3),

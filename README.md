@@ -98,6 +98,9 @@ These are enforced in code, not just documented:
 - **The model never sets risk limits.** `risk/risk.py` is deterministic.
 - **Baselines first.** The MLP must beat logistic regression and gradient
   boosting out of sample, after costs, or it is not used.
+- **A computed Greek is labelled as one.** `data/enrich.py` recovers missing
+  Greeks by solving implied vol from the price, and flags every quote it touches
+  `greeks_computed` — a modelled delta is never mistaken for an observed one.
 - **Every seed is recorded** — and `build_mlp` seeds before weight
   initialisation, so a recorded seed actually reproduces its run.
 

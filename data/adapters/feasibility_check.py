@@ -33,6 +33,7 @@ class FeasibilityReport:
     dte_in_range_pct: float = 0.0
     days_with_target_delta: int = 0
     days_with_full_spread: int = 0
+    greeks_recoverable_pct: float = 0.0
     flag_counts: dict = field(default_factory=dict)
     blockers: list = field(default_factory=list)
 
@@ -51,7 +52,9 @@ class FeasibilityReport:
             f"  date range             : {self.date_min} .. {self.date_max}",
             f"  distinct trading days  : {self.n_trading_days:,}",
             f"  implied vol present    : {'yes' if self.has_iv else 'NO'}",
-            f"  greeks present         : {'yes' if self.has_greeks else 'NO'}",
+            f"  greeks present         : {'yes' if self.has_greeks else 'NO'}"
+            + ("" if self.has_greeks else
+               f"  (recoverable from prices: {self.greeks_recoverable_pct:.0%})"),
             f"  quotes in {MIN_DTE}-{MAX_DTE} DTE    : {self.dte_in_range_pct:.1%}",
             f"  days w/ {TARGET_DELTA:+.2f}-delta put : {self.days_with_target_delta:,}",
             f"  days w/ full ${SPREAD_WIDTH:.0f} spread : {self.days_with_full_spread:,}",
@@ -113,10 +116,19 @@ def assess(rows, symbol: str = "SPY") -> FeasibilityReport:
 
     # Blockers: things that make the strategy as specified impossible.
     if not rep.has_greeks:
-        rep.blockers.append(
-            "no delta field -- cannot select a 20-delta short strike. Either pick "
-            "a dataset with greeks or compute them (needs a rate + dividend curve)."
-        )
+        rep.greeks_recoverable_pct = _recoverable_fraction(quotes)
+        if rep.greeks_recoverable_pct >= 0.80:
+            rep.blockers.append(
+                f"no delta field, but {rep.greeks_recoverable_pct:.0%} of quotes can "
+                "be solved from their prices. Run data.enrich.enrich_quotes with a "
+                "rate and dividend curve (data/rates.py) before building candidates."
+            )
+        else:
+            rep.blockers.append(
+                f"no delta field, and only {rep.greeks_recoverable_pct:.0%} of quotes "
+                "have prices an implied-vol solver can invert -- cannot select a "
+                "20-delta short strike from this data."
+            )
     if not rep.has_iv:
         rep.blockers.append("no implied vol -- short_put_iv feature unavailable")
     if rep.dte_in_range_pct == 0:
@@ -132,6 +144,26 @@ def assess(rows, symbol: str = "SPY") -> FeasibilityReport:
             f"have both legs of a ${SPREAD_WIDTH:.0f} spread -- strike grid too coarse"
         )
     return rep
+
+
+def _recoverable_fraction(quotes, r: float = 0.045, q: float = 0.013) -> float:
+    """What share of Greek-less quotes an implied-vol solver could rescue.
+
+    A rough probe using flat rates -- enough to tell "solvable" from "not", not
+    a substitute for the real enrichment pass with a proper curve.
+    """
+    from models.blackscholes import implied_vol_detail
+    if not quotes:
+        return 0.0
+    ok = 0
+    for quote in quotes:
+        price = quote.mid if _finite(quote.mid) and quote.mid > 0 else quote.last
+        if not _finite(price) or price <= 0 or not _finite(quote.underlying_price):
+            continue
+        res = implied_vol_detail(price, quote.underlying_price, quote.strike,
+                                 quote.dte / 365.0, r, q, quote.option_type)
+        ok += res.ok
+    return ok / len(quotes)
 
 
 def _read_any(path: Path) -> list[dict]:

@@ -88,7 +88,15 @@ thousands of contracts means the column is fake.
 
 ---
 
-## Phase 2 — Greeks, if the dataset lacks them  *(conditional)*
+## Phase 2 — Greeks, if the dataset lacks them  ✅ BUILT
+
+**Status: implemented and tested.** `models/blackscholes.py`, `data/rates.py` and
+`data/enrich.py`, 73 tests. Skip the pass entirely if Phase 1's data has delta;
+`feasibility_check` now reports what share of a Greek-less chain is recoverable.
+
+Verified against the real Yahoo chain: 494 of 508 quotes solved, recovering 453
+distinct implied vols where the vendor column had 20 — i.e. a real surface in
+place of a placeholder.
 
 **Skip entirely if Phase 1's data has delta.**
 
