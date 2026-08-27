@@ -1,0 +1,9 @@
+# Hard rules. The model never edits these.
+account_size: 100000.0
+max_loss_per_trade_pct: 0.01
+max_open_risk_pct: 0.05
+max_trades_per_day: 2
+kill_daily_loss_pct: 0.03
+kill_weekly_loss_pct: 0.06
+require_clean_data: true
+paper_trade_only: true

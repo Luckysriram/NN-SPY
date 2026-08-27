@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Data — raw data is large; processed/experiments can be regenerated
+data/raw/
+experiments/
+*.parquet
+*.feather
+
+# Notebooks / scratch
+.ipynb_checkpoints/
+scratch/
+*.tmp
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Secrets — never commit API keys
+.env
+*.key
+
+# Test / tooling caches
+.pytest_cache/
+.ruff_cache/

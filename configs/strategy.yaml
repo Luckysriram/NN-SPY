@@ -1,0 +1,19 @@
+# Entry construction and candidate filters.
+spread_width: 5.0
+min_dte: 30
+max_dte: 45
+target_delta: -0.20
+profit_target_frac: 0.50
+stop_loss_frac: 2.0
+time_exit_dte: 7
+
+# Candidate filters. Every rejection is recorded with its reason.
+min_oi: 100
+min_volume: 0
+min_credit: 0.20            # below this the trade cannot pay for its own costs
+max_spread_pct: 0.50
+gate_on_events: true        # reject candidates whose window contains FOMC/CPI/JOBS
+
+# Conservative fills: never assume a mid fill.
+slippage_per_leg: 0.025     # 0.05 per spread round-trip leg pair
+commission_per_contract: 0.65
