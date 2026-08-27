@@ -129,6 +129,12 @@ tests). What is **not** done, and what to do next:
 - **No result on real data means anything yet.** The synthetic fixture exercises
   the plumbing. It says nothing about whether the strategy works.
 
+## Roadmap
+
+`docs/superpowers/plans/2026-08-27-nn-spy-next-phases.md` lays out what is left,
+with go/no-go gates. The short version: Phase 0 is choosing a data source, and
+it blocks everything else.
+
 ## Layout
 
 ```
