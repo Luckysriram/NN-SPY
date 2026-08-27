@@ -53,7 +53,7 @@ make setup
 make test
 ```
 
-281 tests, unit and integration. They run on every push and pull request via
+282 tests, unit and integration. They run on every push and pull request via
 `.github/workflows/ci.yml`, which also smoke-tests the full pipeline end to end:
 
 ```bash
@@ -117,7 +117,7 @@ Check these before believing any number:
 
 ## Status
 
-The pipeline, the models and the test suite are complete and passing (281
+The pipeline, the models and the test suite are complete and passing (282
 tests). What is **not** done, and what to do next:
 
 - **No real data.** `configs/data.yaml` carries placeholder dates. Run the
