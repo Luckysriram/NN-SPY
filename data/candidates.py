@@ -34,7 +34,10 @@ def generate_candidates(quotes, decision_time, config: dict | None = None,
     min_volume = cfg.get("min_volume", 0)
     min_credit = cfg.get("min_credit", 0.20)
     max_spread_pct = cfg.get("max_spread_pct", 0.50)
-    gate_on_events = cfg.get("gate_on_events", True)
+    # Defaults off: measured at 99.69% of windows blocked with a real calendar,
+    # because a 30-45 day hold cannot avoid monthly macro releases. Event
+    # proximity belongs in the features, not in a gate that rejects everything.
+    gate_on_events = cfg.get("gate_on_events", False)
     require_clean = cfg.get("require_clean_quotes", True)
     calendar = calendar if calendar is not None else load_event_calendar()
 

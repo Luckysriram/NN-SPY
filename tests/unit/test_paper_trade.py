@@ -98,7 +98,7 @@ def test_event_gate_reports_the_event_that_blocked_the_trade():
     cal = dated_calendar(FOMC=[date(2024, 2, 20)])
     sig = paper_signal(chain(), history(), history(symbol="^VIX"), TS,
                        model=DummyModel(), scaler=fitted_scaler(), threshold=0.5,
-                       config=CFG, calendar=cal)
+                       config={**CFG, "gate_on_events": True}, calendar=cal)
     assert sig["decision"] == "NO_TRADE"
     assert sig["reasons"] == ["event_FOMC"]
 

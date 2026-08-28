@@ -87,9 +87,11 @@ def build_dataset_from_frame(df, underlying_bars, vix_bars, *, config=None,
         days = days[:max_days]
 
     all_candidates, candidates, outcomes, vectors, entry_dates = [], [], [], [], []
+    n_clean = 0
     for n, ts in enumerate(days, 1):
         day = entry_rows[entry_rows["timestamp"] == ts]
         quotes = validate_quotes(_frame_to_quotes(day, symbol))
+        n_clean += sum(1 for q in quotes if q.is_clean)
         decision_time = _as_datetime(ts)
 
         day_candidates = generate_candidates(quotes, decision_time, cfg,
@@ -111,6 +113,7 @@ def build_dataset_from_frame(df, underlying_bars, vix_bars, *, config=None,
         if progress and (n % 250 == 0 or n == len(days)):
             progress(f"  {n:,}/{len(days):,} days   {len(candidates):,} labelled trades")
 
+    report.quality = {"_total_quotes": len(entry_rows), "_clean_quotes": n_clean}
     return _finish(report, all_candidates, candidates, outcomes, vectors, entry_dates)
 
 

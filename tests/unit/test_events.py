@@ -1,4 +1,5 @@
 from datetime import date
+from pathlib import Path
 
 import pytest
 
@@ -32,12 +33,21 @@ def test_days_to_event_picks_the_nearest_and_prefers_the_future_on_a_tie():
 
 
 def test_load_calendar_has_keys_for_all_major_events():
-    cal = load_event_calendar()
-    assert set(cal.dates.keys()) == set(MAJOR_EVENTS)
+    assert set(seed_calendar().dates.keys()) == set(MAJOR_EVENTS)
+
+
+def seed_calendar():
+    """The built-in seed, independent of any events.csv on disk.
+
+    These tests must not depend on data/raw/events/events.csv -- it is
+    gitignored, so a test that reads it passes locally and behaves differently
+    in CI.
+    """
+    return load_event_calendar(path=Path("does_not_exist_events.csv"))
 
 
 def test_calendar_declares_its_coverage_window():
-    cal = load_event_calendar()
+    cal = seed_calendar()
     assert cal.coverage_start < cal.coverage_end
     assert cal.covers(date(2024, 6, 1))
     assert not cal.covers(date(2016, 6, 1))
@@ -46,11 +56,13 @@ def test_calendar_declares_its_coverage_window():
 def test_assert_covers_refuses_a_period_the_calendar_cannot_support():
     """The guard against training on 2016-2022 with a 2024+ calendar."""
     with pytest.raises(ValueError, match="event calendar covers"):
-        load_event_calendar().assert_covers(date(2016, 1, 1), date(2022, 12, 31))
+        seed_calendar().assert_covers(date(2016, 1, 1), date(2022, 12, 31))
 
 
 def test_event_feature_suffix_covers_every_major_event():
-    assert set(EVENT_FEATURE_SUFFIX) == set(MAJOR_EVENTS)
+    """Every active event needs a feature name. Extra suffixes (CPI) are fine --
+    they are kept so the event can be restored without touching the mapping."""
+    assert set(MAJOR_EVENTS) <= set(EVENT_FEATURE_SUFFIX)
 
 
 def test_jobs_reports_land_on_first_fridays():

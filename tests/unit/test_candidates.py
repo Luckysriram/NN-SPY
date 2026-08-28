@@ -74,7 +74,8 @@ def test_rejects_when_nearest_delta_is_far_from_target(cal):
 
 def test_rejects_when_a_major_event_falls_inside_the_window():
     cal = open_calendar(FOMC=[date(2024, 1, 31)])
-    c = generate_candidates(chain(), TS, CFG, calendar=cal)[0]
+    c = generate_candidates(chain(), TS, {**CFG, "gate_on_events": True},
+                            calendar=cal)[0]
     assert c.rejection_reason == "event_FOMC"
 
 
@@ -85,7 +86,8 @@ def test_rejects_when_the_event_calendar_does_not_cover_the_date():
                                  "JOBS": frozenset()},
                           coverage_start=date(2030, 1, 1),
                           coverage_end=date(2031, 1, 1), source="test")
-    c = generate_candidates(chain(), TS, CFG, calendar=blind)[0]
+    c = generate_candidates(chain(), TS, {**CFG, "gate_on_events": True},
+                            calendar=blind)[0]
     assert c.rejection_reason == "event_calendar_gap"
 
 

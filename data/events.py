@@ -23,12 +23,19 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-MAJOR_EVENTS = ("FOMC", "CPI", "JOBS")
+# CPI is deliberately ABSENT. BLS (bls.gov) and FRED both refuse programmatic
+# access (HTTP 403), so historical CPI release dates could not be sourced for
+# 2015-2023. Inventing them -- or approximating "the second week" -- would put a
+# wrong feature into every training row, which is worse than having one fewer
+# feature. Add "CPI" back here, add its suffix below, and drop the dates into
+# data/raw/events/events.csv if you obtain a real schedule.
+MAJOR_EVENTS = ("FOMC", "JOBS")
 
 # Feature-name suffix per event. Kept beside MAJOR_EVENTS so the feature columns
 # and the calendar can never drift apart (the old bug: calendar emitted
 # "days_to_jobs" while the feature list wanted "days_to_jobs_report").
 EVENT_FEATURE_SUFFIX = {"FOMC": "fomc", "CPI": "cpi", "JOBS": "jobs_report"}
+# (suffixes for events not in MAJOR_EVENTS are kept so CPI can be restored)
 
 _SEED_FOMC = [
     date(2024, 1, 31), date(2024, 3, 20), date(2024, 5, 1), date(2024, 6, 12),
@@ -101,7 +108,6 @@ def load_event_calendar(path=None) -> EventCalendar:
     return EventCalendar(
         dates={
             "FOMC": frozenset(_SEED_FOMC),
-            "CPI": frozenset(),   # no rule and no seed: honestly empty
             "JOBS": jobs_report_dates(lo.year, hi.year),
         },
         coverage_start=lo, coverage_end=hi, source="seed",
