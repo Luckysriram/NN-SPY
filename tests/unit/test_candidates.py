@@ -101,3 +101,19 @@ def test_dte_outside_the_window_is_ignored(cal):
     far = [q(date(2024, 6, 1), 151, 400.0, -0.20, 2.0, 2.4),
            q(date(2024, 6, 1), 151, 395.0, -0.12, 0.8, 1.2)]
     assert generate_candidates(far, TS, CFG, calendar=cal) == []
+
+
+def test_spread_width_is_configurable(cal):
+    """Width drives the economics: a wider spread collects several times the
+    premium for the same two legs of bid-ask cost."""
+    quotes = chain() + [q(E1, 45, 390.0, -0.09, 0.5, 0.7)]
+    wide = accepted_only(generate_candidates(
+        quotes, TS, {**CFG, "spread_width": 10.0}, calendar=cal))
+    assert len(wide) == 1
+    assert wide[0].short_strike == 400.0 and wide[0].long_strike == 390.0
+    assert wide[0].width == 10.0
+
+
+def test_a_width_with_no_matching_long_leg_is_rejected(cal):
+    c = generate_candidates(chain(), TS, {**CFG, "spread_width": 37.0}, calendar=cal)[0]
+    assert c.rejection_reason == "long_leg_missing"

@@ -61,7 +61,8 @@ def build_dataset_from_frame(df, underlying_bars, vix_bars, *, config=None,
                              slippage: float = 0.0, symbol: str = "SPY",
                              min_entry_dte: int = MIN_DTE,
                              max_entry_dte: int = MAX_DTE,
-                             max_days: int | None = None, progress=None):
+                             max_days: int | None = None, progress=None,
+                             sim_kw: dict | None = None):
     """Scale path: build from the canonical parquet frame.
 
     Two things differ from `build_dataset`, both forced by real data volume:
@@ -101,7 +102,7 @@ def build_dataset_from_frame(df, underlying_bars, vix_bars, *, config=None,
         for cand in accepted_only(day_candidates):
             outcome = simulate_trade(cand, index.snapshots_for(cand),
                                      fees_per_spread=fees_per_spread,
-                                     slippage=slippage)
+                                     slippage=slippage, **(sim_kw or {}))
             if outcome.exit_reason == "NO_DATA":
                 continue
             candidates.append(cand)

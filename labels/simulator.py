@@ -69,15 +69,22 @@ def intrinsic_at_expiry(candidate: Candidate, underlying: float) -> float:
 
 def simulate_trade(candidate: Candidate, snapshots, *,
                    fees_per_spread: float = 0.0,
-                   slippage: float = 0.0) -> TradeOutcome:
+                   slippage: float = 0.0,
+                   profit_target_frac: float = PROFIT_TARGET_FRAC,
+                   stop_loss_frac: float = STOP_LOSS_FRAC,
+                   time_exit_dte: int = TIME_EXIT_DTE) -> TradeOutcome:
     """Walk `snapshots` forward until an exit rule fires.
 
     `fees_per_spread` is the TOTAL round-trip commission (open + close).
     `slippage` is added to each close cost.
+
+    The three rails default to the spec's values but are parameters so exit
+    rules can be swept. Pass `stop_loss_frac=float("inf")` to disable the stop
+    entirely (hold to target, time exit or expiry).
     """
     credit = candidate.entry_credit
-    target = credit * PROFIT_TARGET_FRAC
-    stop = credit * STOP_LOSS_FRAC
+    target = credit * profit_target_frac
+    stop = credit * stop_loss_frac
 
     marks = sorted((s for s in snapshots
                     if s.usable and s.time > candidate.entry_time),
@@ -105,7 +112,7 @@ def simulate_trade(candidate: Candidate, snapshots, *,
         elif snap.time.date() >= candidate.expiry:
             exit_reason = "EXPIRY"
             raw_cost = intrinsic_at_expiry(candidate, snap.underlying_price)
-        elif dte_now <= TIME_EXIT_DTE:
+        elif dte_now <= time_exit_dte:
             exit_reason = "TIME_EXIT"
         if exit_reason:
             break

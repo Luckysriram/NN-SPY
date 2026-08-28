@@ -29,6 +29,10 @@ def generate_candidates(quotes, decision_time, config: dict | None = None,
                         calendar=None) -> list[Candidate]:
     """One candidate per eligible expiry at `decision_time`."""
     cfg = config or {}
+    # Width is configurable because it drives the economics: a wider spread
+    # collects several times the premium for the SAME two legs of bid-ask cost,
+    # and friction is 28% of gross premium at $5 wide on SPY.
+    width_target = cfg.get("spread_width", SPREAD_WIDTH)
     slippage_per_leg = cfg.get("slippage_per_leg", 0.025)
     min_oi = cfg.get("min_oi", 100)
     min_volume = cfg.get("min_volume", 0)
@@ -58,7 +62,7 @@ def generate_candidates(quotes, decision_time, config: dict | None = None,
             continue                      # no delta anywhere: nothing to select on
 
         short = min(with_delta, key=lambda q: abs(q.delta - TARGET_DELTA))
-        long_strike = round(short.strike - SPREAD_WIDTH, 2)
+        long_strike = round(short.strike - width_target, 2)
         long = next((q for q in chain if abs(q.strike - long_strike) < 1e-6), None)
 
         # Credit is conservative on both legs: sell at the bid, buy at the ask,
@@ -71,6 +75,7 @@ def generate_candidates(quotes, decision_time, config: dict | None = None,
             entry_credit=entry_credit, calendar=calendar,
             min_oi=min_oi, min_volume=min_volume, min_credit=min_credit,
             max_spread_pct=max_spread_pct, gate_on_events=gate_on_events,
+            width_target=width_target,
         )
 
         out.append(Candidate(
@@ -78,7 +83,7 @@ def generate_candidates(quotes, decision_time, config: dict | None = None,
             long_strike=long.strike if long else long_strike,
             expiry=expiry, dte=short.dte,
             entry_credit=max(entry_credit, 0.0) if reason else entry_credit,
-            width=(short.strike - long.strike) if long else SPREAD_WIDTH,
+            width=(short.strike - long.strike) if long else width_target,
             underlying_price=_nz(short.underlying_price),
             short_delta=_nz(short.delta), short_iv=_nz(short.iv),
             short_bid=short.bid, short_ask=short.ask,
@@ -100,7 +105,7 @@ def generate_candidates(quotes, decision_time, config: dict | None = None,
 
 def _first_rejection(*, short, long, expiry, decision_time, entry_credit, calendar,
                      min_oi, min_volume, min_credit, max_spread_pct,
-                     gate_on_events) -> str:
+                     gate_on_events, width_target=SPREAD_WIDTH) -> str:
     """Return the first filter the candidate fails, or "" if it passes them all.
 
     Delta is checked before the long leg deliberately. Put deltas shrink as
@@ -116,8 +121,8 @@ def _first_rejection(*, short, long, expiry, decision_time, entry_credit, calend
     bad_order = validate_strike_order(short.strike, long.strike)
     if bad_order:
         return bad_order
-    if abs((short.strike - long.strike) - SPREAD_WIDTH) > 1e-6:
-        return "width_not_5"
+    if abs((short.strike - long.strike) - width_target) > 1e-6:
+        return "width_mismatch"
     if entry_credit < min_credit:
         return "credit_too_small"
     if entry_credit >= (short.strike - long.strike):

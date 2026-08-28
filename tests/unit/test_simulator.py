@@ -170,3 +170,22 @@ def test_a_loss_can_never_exceed_the_defined_risk():
 def test_valid_marks_are_not_clamped():
     out = simulate_trade(CAND, [snap(1, 1.6, 0.5), snap(2, 0.9, 0.4)])
     assert out.n_clamped_marks == 0
+
+
+def test_rails_are_configurable():
+    # credit 2.00 -> 2x stop is 4.00, 3x stop is 6.00. Close cost here is 4.00.
+    snaps = [snap(1, 4.4, 0.4), snap(39, 1.9, 0.4)]
+    assert simulate_trade(CAND, snaps).exit_reason == "STOP_LOSS"
+    assert simulate_trade(CAND, snaps, stop_loss_frac=3.0).exit_reason == "TIME_EXIT"
+
+
+def test_the_stop_can_be_disabled_entirely():
+    out = simulate_trade(CAND, [snap(1, 4.9, 0.0), snap(39, 1.9, 0.4)],
+                         stop_loss_frac=float("inf"))
+    assert out.exit_reason == "TIME_EXIT"
+
+
+def test_a_looser_profit_target_takes_longer_to_hit():
+    snaps = [snap(1, 1.6, 0.5), snap(2, 0.9, 0.4)]
+    assert simulate_trade(CAND, snaps, profit_target_frac=0.5).n_marks == 2
+    assert simulate_trade(CAND, snaps, profit_target_frac=0.75).n_marks == 1
