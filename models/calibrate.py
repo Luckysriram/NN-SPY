@@ -47,6 +47,14 @@ class Calibrator:
             # One class in validation: identity calibration beats a constant map.
             self._model = "identity"
             return self
+        if len(np.unique(p)) < 2:
+            # A predictor that emits ONE value carries no ranking to calibrate.
+            # Isotonic would map that value to the validation base rate, which
+            # silently turns a never-trade control into a trade-everything one:
+            # the constant 0.0 comes back as ~0.58 and clears every threshold.
+            # Refuse, and leave the predictor as it is.
+            self._model = "identity"
+            return self
         if self.method == "isotonic":
             self._model = IsotonicRegression(out_of_bounds="clip").fit(p, y)
         else:

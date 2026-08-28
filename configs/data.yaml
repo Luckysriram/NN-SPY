@@ -5,13 +5,15 @@ symbol: SPY
 source: optionsDX EOD (free tier)
 raw_dir: data/raw
 option_chains_dir: data/raw/option_chains
-canonical_chains: data/raw/option_chains/spy_optionsdx_2015_2023.parquet
+canonical_chains: data/raw/option_chains/spy_optionsdx_2010_2023.parquet
 underlying_dir: data/raw/underlying
 vix_dir: data/raw/vix
 events_file: data/raw/events/events.csv
 
-# Verified coverage: 2,261 trading days, 3,718,691 put quotes (0-60 DTE).
-start: "2015-01-02"
+# Verified coverage: 3,508 trading days, 4,232,977 put quotes (0-60 DTE).
+# 2010-2012 are sparse: SPY quoted ~1.1 expiries/day in the 30-45 DTE window
+# before weeklies proliferated, against ~4.5/day by 2019.
+start: "2010-01-04"
 end: "2023-12-29"
 
 # Quote hygiene thresholds used by data/validate.py

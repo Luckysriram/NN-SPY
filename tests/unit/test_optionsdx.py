@@ -118,7 +118,7 @@ def test_convert_directory_writes_one_parquet(tmp_path):
 
 
 def test_convert_directory_rejects_an_empty_source(tmp_path):
-    with pytest.raises(FileNotFoundError, match="no .txt files"):
+    with pytest.raises(FileNotFoundError, match="no .txt or .parquet files"):
         convert_directory(tmp_path, tmp_path / "x.parquet", progress=None)
 
 
@@ -128,3 +128,26 @@ def test_to_quote_dicts_feeds_the_generic_normalizer(sample):
     assert len(res.quotes) == 2
     q = next(q for q in res.quotes if q.strike == 400.0)
     assert q.option_type == "P" and q.bid == 2.0 and q.delta == -0.2
+
+
+def test_reads_the_same_format_from_parquet(tmp_path, sample):
+    """optionsDX text files are also circulated pre-converted to parquet with
+    the bracketed headers preserved."""
+    raw = pd.read_csv(sample, skipinitialspace=True)
+    pq_path = tmp_path / "spy_eod_202401.parquet"
+    raw.to_parquet(pq_path, index=False)
+    from_txt = read_optionsdx(sample)
+    from_pq = read_optionsdx(pq_path)
+    assert list(from_pq.columns) == CANONICAL_COLUMNS
+    assert len(from_pq) == len(from_txt)
+    assert from_pq.strike.tolist() == from_txt.strike.tolist()
+    assert from_pq.bid.tolist() == from_txt.bid.tolist()
+
+
+def test_convert_directory_accepts_parquet_sources(tmp_path):
+    src = tmp_path / "src"; src.mkdir()
+    raw = pd.DataFrame([r.split(", ") for r in [row(400, 45, "2.0", "2.4", "-0.20")]],
+                       columns=HEADER.split(", "))
+    raw.to_parquet(src / "spy_eod_202401.parquet", index=False)
+    info = convert_directory(src, tmp_path / "out.parquet", progress=None)
+    assert info["files"] == 1 and info["rows"] == 1

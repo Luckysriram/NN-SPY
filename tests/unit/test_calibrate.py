@@ -71,3 +71,18 @@ def test_unknown_method_rejected():
 
 def test_expected_value_formula():
     assert expected_value(0.6, 10.0, 5.0, costs=1.0) == pytest.approx(0.6 * 10 - 0.4 * 5 - 1.0)
+
+
+def test_a_constant_predictor_is_not_calibrated_into_the_base_rate():
+    """Isotonic on a single-valued input returns the validation base rate, which
+    turns a never-trade control into a trade-everything one."""
+    p = np.zeros(200)
+    y = (np.arange(200) % 10 < 6).astype(float)      # base rate 0.6
+    out = Calibrator().fit(p, y).transform(np.zeros(50))
+    assert np.allclose(out, 0.0), "constant predictor must pass through unchanged"
+
+
+def test_a_ranking_predictor_is_still_calibrated():
+    p, y = synthetic(400)
+    out = Calibrator().fit(p, y).transform(p)
+    assert len(np.unique(out)) > 1

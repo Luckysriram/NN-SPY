@@ -69,7 +69,13 @@ def read_optionsdx(path, *, option_types=("P",), min_dte: int = 0,
     forward until the 7-DTE exit, so a window of roughly 0-60 keeps everything
     the simulator needs while discarding the LEAPS that dominate row count.
     """
-    df = clean_columns(pd.read_csv(path, skipinitialspace=True, low_memory=False))
+    p = Path(path)
+    # optionsDX ships as delimited text, but the same files are also circulated
+    # pre-converted to Parquet with the bracketed headers preserved verbatim.
+    if p.suffix.lower() in (".parquet", ".pq"):
+        df = clean_columns(pd.read_parquet(p))
+    else:
+        df = clean_columns(pd.read_csv(p, skipinitialspace=True, low_memory=False))
 
     dte = pd.to_numeric(df["DTE"], errors="coerce")
     df = df[(dte >= min_dte) & (dte <= max_dte)].copy()
@@ -122,9 +128,9 @@ def convert_directory(src_dir, out_path, *, option_types=("P",), min_dte: int = 
     """Convert every monthly .txt in `src_dir` into one canonical Parquet file."""
     src, out = Path(src_dir), Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    files = sorted(src.glob("*.txt"))
+    files = sorted([f for pat in ("*.txt", "*.parquet") for f in src.glob(pat)])
     if not files:
-        raise FileNotFoundError(f"no .txt files in {src}")
+        raise FileNotFoundError(f"no .txt or .parquet files in {src}")
 
     # Stream month by month through a ParquetWriter rather than concatenating
     # ~5M rows in memory first. The files are already in chronological order, so
