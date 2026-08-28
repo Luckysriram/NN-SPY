@@ -1,17 +1,34 @@
-# Data sources and coverage. Dates are adjusted to whatever the chosen sample
-# dataset actually contains -- run `make feasibility SOURCE=<path>` first.
+# Data source: optionsDX SPY end-of-day option chains.
+# Range and figures below are what the data ACTUALLY contains, measured by
+# data/adapters/feasibility_check.py -- not aspirational values from the spec.
 symbol: SPY
+source: optionsDX EOD (free tier)
 raw_dir: data/raw
 option_chains_dir: data/raw/option_chains
+canonical_chains: data/raw/option_chains/spy_optionsdx_2015_2023.parquet
 underlying_dir: data/raw/underlying
 vix_dir: data/raw/vix
 events_file: data/raw/events/events.csv
 
-# Placeholders. feasibility_check.py reports the true range; update before use.
-start: "2016-01-01"
-end: "2025-12-31"
+# Verified coverage: 2,261 trading days, 3,718,691 put quotes (0-60 DTE).
+start: "2015-01-02"
+end: "2023-12-29"
 
 # Quote hygiene thresholds used by data/validate.py
-max_spread_pct: 0.50        # (ask-bid)/mid above this => wide_spread flag
-max_iv: 5.0                 # 500% IV is not a real quote
+max_spread_pct: 0.50
+max_iv: 5.0
 stale_quote_days: 3
+
+# --- source-specific facts that change how the pipeline must be configured ---
+
+# optionsDX carries NO open-interest column (P_SIZE is bid/ask size at the
+# close). Leaving min_oi above 0 rejects every candidate. Screen liquidity on
+# volume and quoted spread instead -- see configs/strategy.yaml.
+has_open_interest: false
+
+# Quotes are stamped 16:00, the close. The spec asks for a 15:45 decision;
+# end-of-day data cannot provide one. Decisions are therefore made on the
+# closing snapshot, which is 15 minutes later than specified and NOT executable
+# at that same close.
+quote_time_et: "16:00"
+spec_decision_time_et: "15:45"

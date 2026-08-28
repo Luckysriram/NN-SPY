@@ -8,8 +8,10 @@ stop_loss_frac: 2.0
 time_exit_dte: 7
 
 # Candidate filters. Every rejection is recorded with its reason.
-min_oi: 100
-min_volume: 0
+# optionsDX has no open-interest column, so this MUST stay 0 for that source
+# or every candidate is rejected. See configs/data.yaml:has_open_interest.
+min_oi: 0
+min_volume: 1
 min_credit: 0.20            # below this the trade cannot pay for its own costs
 max_spread_pct: 0.50
 gate_on_events: true        # reject candidates whose window contains FOMC/CPI/JOBS
