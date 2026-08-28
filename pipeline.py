@@ -21,6 +21,7 @@ from features.features import (FEATURE_COLS, build_feature_vector, nan_report,
                                to_matrix)
 from labels.outcomes import label_distribution, outcome_label
 from labels.simulator import simulate_trade, snapshots_from_quotes
+from schemas import MAX_DTE, MIN_DTE
 
 
 @dataclass
@@ -53,6 +54,92 @@ class BuildReport:
         L += [f"  rows dropped (NaN)   : {self.n_dropped_incomplete:,}",
               f"  FINAL TRAINING ROWS  : {self.n_final:,}", "=" * 62]
         return "\n".join(L)
+
+
+def build_dataset_from_frame(df, underlying_bars, vix_bars, *, config=None,
+                             calendar=None, fees_per_spread: float = 0.0,
+                             slippage: float = 0.0, symbol: str = "SPY",
+                             min_entry_dte: int = MIN_DTE,
+                             max_entry_dte: int = MAX_DTE,
+                             max_days: int | None = None, progress=None):
+    """Scale path: build from the canonical parquet frame.
+
+    Two things differ from `build_dataset`, both forced by real data volume:
+
+    * Forward marks come from a `QuoteIndex` built once, instead of rescanning
+      the quote stream per candidate. On 3.7M quotes that is the difference
+      between 15 seconds and 11 hours.
+    * `OptionQuote` objects are materialised one DAY at a time, and only for the
+      entry DTE window. Building 3.7M dataclass instances up front costs more
+      memory than the dataframe they came from; the index needs plain arrays,
+      and candidate generation only ever looks at one day.
+    """
+    from labels.quote_index import QuoteIndex
+
+    cfg = config or {}
+    index = QuoteIndex.from_frame(df)
+
+    entry_rows = df[(df["dte"] >= min_entry_dte) & (df["dte"] <= max_entry_dte)]
+    report = BuildReport(n_rows=len(df), n_quotes=len(entry_rows))
+
+    days = sorted(entry_rows["timestamp"].unique())
+    if max_days is not None:
+        days = days[:max_days]
+
+    all_candidates, candidates, outcomes, vectors, entry_dates = [], [], [], [], []
+    for n, ts in enumerate(days, 1):
+        day = entry_rows[entry_rows["timestamp"] == ts]
+        quotes = validate_quotes(_frame_to_quotes(day, symbol))
+        decision_time = _as_datetime(ts)
+
+        day_candidates = generate_candidates(quotes, decision_time, cfg,
+                                             calendar=calendar)
+        all_candidates.extend(day_candidates)
+
+        for cand in accepted_only(day_candidates):
+            outcome = simulate_trade(cand, index.snapshots_for(cand),
+                                     fees_per_spread=fees_per_spread,
+                                     slippage=slippage)
+            if outcome.exit_reason == "NO_DATA":
+                continue
+            candidates.append(cand)
+            outcomes.append(outcome)
+            vectors.append(build_feature_vector(cand, underlying_bars, vix_bars,
+                                                decision_time, calendar))
+            entry_dates.append(decision_time)
+
+        if progress and (n % 250 == 0 or n == len(days)):
+            progress(f"  {n:,}/{len(days):,} days   {len(candidates):,} labelled trades")
+
+    return _finish(report, all_candidates, candidates, outcomes, vectors, entry_dates)
+
+
+def _as_datetime(ts):
+    import pandas as pd
+    return pd.Timestamp(ts).to_pydatetime()
+
+
+def _frame_to_quotes(day, symbol: str):
+    """Materialise one day's rows as OptionQuote objects."""
+    import math
+
+    from schemas import OptionQuote
+    out = []
+    for r in day.itertuples(index=False):
+        nan = float("nan")
+        out.append(OptionQuote(
+            timestamp=_as_datetime(r.timestamp), symbol=symbol,
+            expiry=_as_datetime(r.expiry).date(), dte=int(r.dte),
+            strike=float(r.strike), option_type=r.option_type,
+            bid=float(r.bid), ask=float(r.ask), mid=float(r.mid),
+            last=float(r.last) if not math.isnan(r.last) else nan,
+            volume=0 if r.volume != r.volume else int(r.volume),
+            open_interest=int(r.open_interest),
+            iv=float(r.iv), delta=float(r.delta), gamma=float(r.gamma),
+            theta=float(r.theta), vega=float(r.vega),
+            underlying_price=float(r.underlying_price),
+        ))
+    return out
 
 
 def build_dataset(rows, underlying_bars, vix_bars, *, config=None, calendar=None,
@@ -92,6 +179,11 @@ def build_dataset(rows, underlying_bars, vix_bars, *, config=None, calendar=None
             vectors.append(vec)
             entry_dates.append(ts)
 
+    return _finish(report, all_candidates, candidates, outcomes, vectors, entry_dates)
+
+
+def _finish(report, all_candidates, candidates, outcomes, vectors, entry_dates):
+    """Assemble the dataset and fill in the build report. Shared by both paths."""
     report.rejections = rejection_summary(all_candidates)
     report.labels = label_distribution(outcomes)
 
