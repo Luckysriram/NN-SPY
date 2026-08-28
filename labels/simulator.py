@@ -40,6 +40,24 @@ def close_cost(short_ask: float, long_bid: float) -> float:
     return short_ask - long_bid
 
 
+def _bounded_close_cost(snap, candidate) -> tuple:
+    """Close cost clamped to [0, width]. Returns (cost, was_clamped).
+
+    A vertical spread cannot cost more than its width to close, nor less than
+    nothing -- both are arbitrage. Real end-of-day chains still violate it: a
+    stale or crossed quote on one leg produced a $7.21 close cost on a $5-wide
+    spread in this dataset, which the simulator happily booked as a -150% loss
+    on a DEFINED-RISK position.
+
+    Clamping to the width is not a cosmetic fix, it is the correct worst case:
+    max loss on a credit spread is exactly width - credit. Violations are
+    counted so a dataset full of them cannot pass unnoticed.
+    """
+    raw = close_cost(snap.short_ask, snap.long_bid)
+    bounded = min(max(raw, 0.0), candidate.width)
+    return bounded, int(bounded != raw)
+
+
 def intrinsic_at_expiry(candidate: Candidate, underlying: float) -> float:
     """Settlement cost of the spread if held to expiry."""
     if math.isnan(underlying):
@@ -69,9 +87,11 @@ def simulate_trade(candidate: Candidate, snapshots, *,
 
     mae = mfe = 0.0
     exit_reason, exit_time, raw_cost, seen = "", marks[-1].time, float("nan"), 0
+    n_clamped = 0
 
     for seen, snap in enumerate(marks, start=1):
-        raw_cost = close_cost(snap.short_ask, snap.long_bid)
+        raw_cost, clamped = _bounded_close_cost(snap, candidate)
+        n_clamped += clamped
         cost = raw_cost + slippage
         mae = max(mae, cost - credit)        # worst loss seen, >= 0
         mfe = max(mfe, credit - cost)        # best gain seen, >= 0
@@ -107,7 +127,7 @@ def simulate_trade(candidate: Candidate, snapshots, *,
         final_return_on_risk=net_pnl / candidate.max_risk,
         max_adverse_excursion=mae, max_favorable_excursion=mfe,
         days_held=(exit_time - candidate.entry_time).total_seconds() / 86400.0,
-        n_marks=seen,
+        n_marks=seen, n_clamped_marks=n_clamped,
     )
 
 

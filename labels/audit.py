@@ -66,8 +66,17 @@ def consistency_checks(outcome) -> list:
         problems.append("negative excursion")
     if not math.isnan(outcome.net_pnl) and outcome.net_pnl > c.entry_credit + 1e-6:
         problems.append("net P&L exceeds the credit received")
-    if not math.isnan(outcome.net_pnl) and outcome.net_pnl < -(c.max_risk + outcome.fees + 1e-6):
-        problems.append("loss exceeds the defined risk of the spread")
+    # The floor is max_risk plus BOTH costs. Omitting slippage made this fire on
+    # trades that were already correctly clamped to max loss -- the worst case is
+    # -(width - credit) - slippage - fees, not -(width - credit) - fees.
+    floor = -(c.max_risk + outcome.fees + outcome.slippage + 1e-6)
+    if not math.isnan(outcome.net_pnl) and outcome.net_pnl < floor:
+        problems.append(
+            f"loss {outcome.net_pnl:.4f} exceeds defined risk floor {floor:.4f}")
+    if outcome.n_clamped_marks:
+        problems.append(
+            f"{outcome.n_clamped_marks} mark(s) violated the [0, width] bound "
+            "in the source data and were clamped")
     return problems
 
 

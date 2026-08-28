@@ -141,3 +141,32 @@ def test_snapshots_from_quotes_skips_timestamps_missing_a_leg():
     later = TS + timedelta(days=1)
     snaps = snapshots_from_quotes(CAND, [quote(timestamp=later, strike=400.0)])
     assert snaps == []
+
+
+def test_close_cost_above_the_width_is_clamped_to_max_loss():
+    """Real EOD data produced a $7.21 close cost on a $5-wide spread. A
+    defined-risk position cannot lose more than width - credit."""
+    out = simulate_trade(CAND, [snap(1, 9.0, 0.0)])          # raw cost 9.00 > width
+    assert out.exit_reason == "STOP_LOSS"
+    assert out.exit_debit == pytest.approx(5.00)             # clamped to the width
+    assert out.net_pnl == pytest.approx(2.00 - 5.00)         # = -max_risk
+    assert out.final_return_on_risk == pytest.approx(-1.0)
+    assert out.n_clamped_marks == 1
+
+
+def test_negative_close_cost_is_clamped_to_zero():
+    out = simulate_trade(CAND, [snap(1, 0.2, 0.9)])          # raw cost -0.70
+    assert out.exit_reason == "PROFIT_TARGET"
+    assert out.exit_debit == pytest.approx(0.0)
+    assert out.n_clamped_marks == 1
+
+
+def test_a_loss_can_never_exceed_the_defined_risk():
+    for short_ask, long_bid in ((9.0, 0.0), (20.0, 0.0), (6.0, 0.1)):
+        out = simulate_trade(CAND, [snap(1, short_ask, long_bid)])
+        assert out.net_pnl >= -(CAND.max_risk + out.fees + out.slippage + 1e-9)
+
+
+def test_valid_marks_are_not_clamped():
+    out = simulate_trade(CAND, [snap(1, 1.6, 0.5), snap(2, 0.9, 0.4)])
+    assert out.n_clamped_marks == 0

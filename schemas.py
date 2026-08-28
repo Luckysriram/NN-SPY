@@ -145,6 +145,9 @@ class TradeOutcome:
     max_favorable_excursion: float # best mark-to-market gain, per share (>= 0)
     days_held: float
     n_marks: int                   # how many snapshots the walk actually saw
+    # Marks whose close cost violated the [0, width] no-arbitrage bound and were
+    # clamped. Non-zero means the source data contains impossible quotes.
+    n_clamped_marks: int = 0
 
     @property
     def net_pnl_dollars(self) -> float:
