@@ -32,15 +32,17 @@ def test_models_are_seeded_and_reproducible():
 def test_simple_rule_reads_credit_to_width_by_name():
     """The old rule hard-coded column 20, which was `credit`, not credit_to_width."""
     X = np.zeros((3, N_FEATURES))
-    X[:, FEATURE_INDEX["credit_to_width"]] = [0.1, 0.5, 0.9]
+    # Values straddle the rebased cutoff (0.096). The old test used 0.1/0.5/0.9,
+    # which are all above it -- and were all BELOW the old unreachable 0.40.
+    X[:, FEATURE_INDEX["credit_to_width"]] = [0.05, 0.12, 0.19]
     p = simple_rule_predict(X)
     assert list(p) == [0.4, 0.6, 0.6]
 
 
 def test_simple_rule_is_unaffected_by_the_neighbouring_credit_column():
     X = np.zeros((2, N_FEATURES))
-    X[:, FEATURE_INDEX["credit"]] = [0.9, 0.9]        # high credit
-    X[:, FEATURE_INDEX["credit_to_width"]] = [0.1, 0.1]   # low ratio
+    X[:, FEATURE_INDEX["credit"]] = [0.9, 0.9]          # high credit
+    X[:, FEATURE_INDEX["credit_to_width"]] = [0.05, 0.05]  # ratio below cutoff
     assert list(simple_rule_predict(X)) == [0.4, 0.4]
 
 
@@ -61,3 +63,42 @@ def test_no_trade_and_always_trade_baselines():
 
 def test_predict_proba_accepts_a_plain_callable():
     assert list(predict_proba(lambda X: np.full(len(X), 0.7), X2)) == [0.7] * 4
+
+
+def test_simple_rule_cutoff_is_reachable_on_real_data():
+    """The old 0.40 cutoff was unreachable: a $5-wide 20-delta SPY spread
+    collects ~10% of its width, so the rule was a constant."""
+    from models.baselines import DEFAULT_CTW_CUTOFF
+    assert 0.04 < DEFAULT_CTW_CUTOFF < 0.21
+
+
+def test_simple_rule_actually_discriminates_at_the_new_cutoff():
+    X = np.zeros((4, N_FEATURES))
+    X[:, FEATURE_INDEX["credit_to_width"]] = [0.05, 0.09, 0.11, 0.20]
+    p = simple_rule_predict(X)
+    assert len(set(p)) == 2, "rule must split the population, not return a constant"
+    assert p[0] == 0.4 and p[-1] == 0.6
+
+
+def test_train_simple_rule_fits_the_cutoff_from_training_data_only():
+    from models.baselines import train_simple_rule
+    X = np.zeros((100, N_FEATURES))
+    X[:, FEATURE_INDEX["credit_to_width"]] = np.linspace(0.05, 0.15, 100)
+    m = train_simple_rule(X)
+    assert m.cutoff == pytest.approx(np.median(X[:, FEATURE_INDEX["credit_to_width"]]))
+
+
+def test_train_simple_rule_returns_an_sklearn_shaped_model():
+    from models.baselines import train_simple_rule
+    X = np.zeros((10, N_FEATURES))
+    X[:, FEATURE_INDEX["credit_to_width"]] = np.linspace(0.05, 0.15, 10)
+    proba = train_simple_rule(X).predict_proba(X)
+    assert proba.shape == (10, 2)
+    assert np.allclose(proba.sum(axis=1), 1.0)
+
+
+def test_a_training_fold_cutoff_does_not_see_the_test_fold():
+    from models.baselines import train_simple_rule
+    train = np.zeros((50, N_FEATURES)); train[:, FEATURE_INDEX["credit_to_width"]] = 0.08
+    test = np.zeros((50, N_FEATURES)); test[:, FEATURE_INDEX["credit_to_width"]] = 0.99
+    assert train_simple_rule(train).cutoff == pytest.approx(0.08)
